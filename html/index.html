@@ -1,0 +1,508 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>Flood Tool &#8212; Flood Tool  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="flood-tool">
+<h1>Flood Tool<a class="headerlink" href="#flood-tool" title="Permalink to this headline">¶</a></h1>
+<p>This package implements a flood risk prediction tool.</p>
+<div class="section" id="geodetic-transformations">
+<h2>Geodetic Transformations<a class="headerlink" href="#geodetic-transformations" title="Permalink to this headline">¶</a></h2>
+<p>For historical reasons, multiple coordinate systems exist in British mapping.
+The Ordnance Survey has been mapping the British Isles since the 18th Century
+and the last major retriangulation from 1936-1962 produced the Ordance Survey
+National Grid (or <strong>OSGB36</strong>), which defined latitude and longitude across the
+island of Great Britain <a class="footnote-reference brackets" href="#id4" id="id1">1</a>. For convenience, a standard Transverse Mercator
+projection <a class="footnote-reference brackets" href="#id5" id="id2">2</a> was also defined, producing a notionally flat gridded surface,
+with gradations called eastings and westings. The scale for these gradations
+was identified with metres.</p>
+<p>The OSGB36 datum is based on the Airy Ellipsoid of 1830, which defines
+semimajor axes for its model of the earth, <span class="math notranslate nohighlight">\(a\)</span> and <span class="math notranslate nohighlight">\(b\)</span>, a scaling
+factor <span class="math notranslate nohighlight">\(F_0\)</span> and ellipsoid height, <span class="math notranslate nohighlight">\(H\)</span>.</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}a &amp;= 6377563.396, \\
+b &amp;= 6356256.910, \\
+F_0 &amp;= 0.9996012717, \\
+H &amp;= 24.7.\end{split}\]</div>
+<p>The point of origin for the transverse Mercator projection is defined in the
+Ordnance Survey longitude-latitude and easting-northing coordinates as</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\phi^{OS}_0 &amp;= 49^\circ \mbox{ north}, \\
+\lambda^{OS}_0 &amp;= 2^\circ \mbox{ west}, \\
+E^{OS}_0 &amp;= 400000 m, \\
+N^{OS}_0 &amp;= -100000 m.\end{split}\]</div>
+<p>More recently, the world has gravitated towards the use of Satellite based GPS
+equipment, which uses the (globally more appropriate) World Geodetic System
+1984 (or <strong>WGS84</strong>). This datum uses a different ellipsoid, which offers a
+better fit for a global coordinate system. Its key properties are:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}a_{WGS} &amp;= 6378137,, \\
+b_{WGS} &amp;= 6356752.314, \\
+F_0 &amp;= 0.9996.\end{split}\]</div>
+<p>For a given point on the WGS84 ellipsoid, an approximate mapping to the
+OSGB36 datum can be found using a Helmert transformation <a class="footnote-reference brackets" href="#id6" id="id3">3</a>,</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{x}^{OS} = \mathbf{t}+\mathbf{M}\mathbf{x}^{WGS}.\]</div>
+<p>Here <span class="math notranslate nohighlight">\(\mathbf{x}\)</span> denotes a coordinate in Cartesian space (i.e in 3D)
+as given by the (invertible) transformation</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\nu &amp;= \frac{aF_0}{\sqrt{1-e^2\sin^2(\phi^{OS})}} \\
+x &amp;= (\nu+H) \sin(\lambda)\cos(\phi) \\
+y &amp;= (\nu+H) \cos(\lambda)\cos(\phi) \\
+z &amp;= ((1-e^2)\nu+H)\sin(\phi)\end{split}\]</div>
+<p>and the transformation parameters are</p>
+<div class="math notranslate nohighlight">
+\begin{eqnarray*}
+\mathbf{t} &amp;= \left(\begin{array}{c}
+-446.448\\ 125.157\\ -542.060
+\end{array}\right),\\
+\mathbf{M} &amp;= \left[\begin{array}{ c c c }
+1+s&amp; -r_3&amp; r_2\\
+r_3 &amp; 1+s &amp; -r_1 \\
+-r_2 &amp; r_1 &amp; 1+s
+\end{array}\right], \\
+s &amp;= 20.4894\times 10^{-6}, \\
+\mathbf{r} &amp;= [0.1502'', 0.2470'', 0.8421''].
+\end{eqnarray*}</div><p>Given a latitude, <span class="math notranslate nohighlight">\(\phi^{OS}\)</span> and longitude, <span class="math notranslate nohighlight">\(\lambda^{OS}\)</span> in the
+OSGB36 datum, easting and northing coordinates, <span class="math notranslate nohighlight">\(E^{OS}\)</span> &amp; <span class="math notranslate nohighlight">\(N^{OS}\)</span>
+can then be calculated using the following formulae:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\rho &amp;= \frac{aF_0(1-e^2)}{\left(1-e^2\sin^2(\phi^{OS})\right)^{\frac{3}{2}}} \\
+\eta &amp;= \sqrt{\frac{\nu}{\rho}-1} \\
+M &amp;= bF_0\left[\left(1+n+\frac{5}{4}n^2+\frac{5}{4}n^3\right)(\phi^{OS}-\phi^{OS}_0)\right. \\
+&amp;\quad-\left(3n+3n^2+\frac{21}{8}n^3\right)\sin(\phi-\phi_0)\cos(\phi^{OS}+\phi^{OS}_0) \\
+&amp;\quad+\left(\frac{15}{8}n^2+\frac{15}{8}n^3\right)\sin(2(\phi^{OS}-\phi^{OS}_0))\cos(2(\phi^{OS}+\phi^{OS}_0)) \\
+&amp;\left.\quad-\frac{35}{24}n^3\sin(3(\phi-\phi_0))\cos(3(\phi^{OS}+\phi^{OS}_0))\right] \\
+I &amp;= M + N^{OS}_0 \\
+II &amp;= \frac{\nu}{2}\sin(\phi^{OS})\cos(\phi^{OS}) \\
+III &amp;= \frac{\nu}{24}\sin(\phi^{OS})cos^3(\phi^{OS})(5-\tan^2(phi^{OS})+9\eta^2) \\
+IIIA &amp;= \frac{\nu}{720}\sin(\phi^{OS})cos^5(\phi^{OS})(61-58\tan^2(\phi^{OS})+\tan^4(\phi^{OS})) \\
+IV &amp;= \nu\cos(\phi^{OS}) \\
+V &amp;= \frac{\nu}{6}\cos^3(\phi^{OS})\left(\frac{\nu}{\rho}-\tan^2(\phi^{OS})\right) \\
+VI &amp;= \frac{\nu}{120}\cos^5(\phi^{OS})(5-18\tan^2(\phi^{OS})+\tan^4(\phi^{OS}) \\
+&amp;\quad+14\eta^2-58\tan^2(\phi^{OS})\eta^2) \\
+E^{OS} &amp;= E^{OS}_0+IV(\lambda^{OS}-\lambda^{OS}_0)+V(\lambda-\lambda^{OS}_0)^3+VI(\lambda^{OS}-\lambda^{OS}_0)^5 \\
+N^{OS} &amp;= I + II(\lambda^{OS}-\lambda^{OS}_0)^2+III(\lambda-\lambda^{OS}_0)^4+IIIA(\lambda^{OS}-\lambda^{OS}_0)^6\end{split}\]</div>
+</div>
+<div class="section" id="module-flood_tool">
+<span id="function-apis"></span><h2>Function APIs<a class="headerlink" href="#module-flood_tool" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="flood_tool.Tool">
+<em class="property">class </em><code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">Tool</code><span class="sig-paren">(</span><em class="sig-param">postcode_file=None</em>, <em class="sig-param">risk_file=None</em>, <em class="sig-param">values_file=None</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.Tool" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class to interact with a postcode database file.</p>
+<p>Reads postcode and flood risk files and provides a postcode locator service.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>postcode_file</strong> (<em>str</em><em>, </em><em>optional</em>) – Filename of a .csv file containing geographic location data for postcodes.</p></li>
+<li><p><strong>risk_file</strong> (<em>str</em><em>, </em><em>optional</em>) – Filename of a .csv file containing flood risk data.</p></li>
+<li><p><strong>postcode_file</strong> – Filename of a .csv file containing property value data for postcodes.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="flood_tool.Tool.get_annual_flood_risk">
+<code class="sig-name descname">get_annual_flood_risk</code><span class="sig-paren">(</span><em class="sig-param">postcodes</em>, <em class="sig-param">probability_bands</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.Tool.get_annual_flood_risk" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get an array of estimated annual flood risk in pounds sterling per year of a flood
+event from a sequence of postcodes and flood probabilities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>postcodes</strong> (<em>sequence of strs</em>) – Ordered collection of postcodes</p></li>
+<li><p><strong>probability_bands</strong> (<em>sequence of strs</em>) – Ordered collection of flood probabilities</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>array of floats for the annual flood risk in pounds sterling for the input postcodes.
+Invalid postcodes return <cite>numpy.nan</cite>.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="flood_tool.Tool.get_easting_northing_flood_probability">
+<code class="sig-name descname">get_easting_northing_flood_probability</code><span class="sig-paren">(</span><em class="sig-param">easting</em>, <em class="sig-param">northing</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.Tool.get_easting_northing_flood_probability" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get an array of flood risk probabilities from arrays of eastings and northings.</p>
+<p>Flood risk data is extracted from the Tool flood risk file. Locations
+not in a risk band circle return <cite>Zero</cite>, otherwise returns the name of the
+highest band it sits in.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>easting</strong> (<em>numpy.ndarray of floats</em>) – OS Eastings of locations of interest</p></li>
+<li><p><strong>northing</strong> (<em>numpy.ndarray of floats</em>) – Ordered sequence of postcodes</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>numpy array of flood probability bands corresponding to input locations.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>numpy.ndarray of strs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="flood_tool.Tool.get_flood_cost">
+<code class="sig-name descname">get_flood_cost</code><span class="sig-paren">(</span><em class="sig-param">postcodes</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.Tool.get_flood_cost" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get an array of estimated cost of a flood event from a sequence of postcodes.
+:param postcodes: Ordered collection of postcodes
+:type postcodes: sequence of strs</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>array of floats for the pound sterling cost for the input postcodes.
+Invalid postcodes return <cite>numpy.nan</cite>.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>numpy.ndarray of floats</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="flood_tool.Tool.get_lat_long">
+<code class="sig-name descname">get_lat_long</code><span class="sig-paren">(</span><em class="sig-param">postcodes</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.Tool.get_lat_long" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get an array of WGS84 (latitude, longitude) pairs from a list of postcodes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>postcodes</strong> (<em>sequence of strs</em>) – Ordered sequence of N postcode strings</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Array of Nx2 (latitude, longitdue) pairs for the input postcodes.
+Invalid postcodes return [<cite>numpy.nan</cite>, <cite>numpy.nan</cite>].</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="flood_tool.Tool.get_sorted_annual_flood_risk">
+<code class="sig-name descname">get_sorted_annual_flood_risk</code><span class="sig-paren">(</span><em class="sig-param">postcodes</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.Tool.get_sorted_annual_flood_risk" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get a sorted pandas DataFrame of flood risks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>postcodes</strong> (<em>sequence of strs</em>) – Ordered sequence of postcodes</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Dataframe of flood risks indexed by (normalized) postcode and ordered by risk,
+then by lexagraphic (dictionary) order on the postcode. The index is named
+<cite>Postcode</cite> and the data column <cite>Flood Risk</cite>.
+Invalid postcodes and duplicates are removed.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>pandas.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="flood_tool.Tool.get_sorted_flood_probability">
+<code class="sig-name descname">get_sorted_flood_probability</code><span class="sig-paren">(</span><em class="sig-param">postcodes</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.Tool.get_sorted_flood_probability" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get an array of flood risk probabilities from a sequence of postcodes.</p>
+<p>Probability is ordered High&gt;Medium&gt;Low&gt;Very low&gt;Zero.
+Flood risk data is extracted from the <cite>Tool</cite> flood risk file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>postcodes</strong> (<em>sequence of strs</em>) – Ordered sequence of postcodes</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Dataframe of flood probabilities indexed by postcode and ordered from <cite>High</cite> to <cite>Zero</cite>,
+then by lexagraphic (dictionary) order on postcode. The index is named <cite>Postcode</cite>, the
+data column is named <cite>Probability Band</cite>. Invalid postcodes and duplicates
+are removed.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>pandas.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.WGS84toOSGB36">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">WGS84toOSGB36</code><span class="sig-paren">(</span><em class="sig-param">latitude</em>, <em class="sig-param">longitude</em>, <em class="sig-param">radians=False</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.WGS84toOSGB36" title="Permalink to this definition">¶</a></dt>
+<dd><p>Wrapper to transform (latitude, longitude) pairs
+from GPS to OS datum.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.get_all_stations">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">get_all_stations</code><span class="sig-paren">(</span><em class="sig-param">limit=20</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.get_all_stations" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get first certain number of stations</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>limit</strong> (<em>int</em>) – the number of stations to return</p></li>
+<li><p><strong>Retruns</strong> – </p></li>
+<li><p><strong>-------</strong> – </p></li>
+<li><p><strong>DataFrame</strong> – A dataframe with columns
+Lat, Long, Station</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.get_closest_station">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">get_closest_station</code><span class="sig-paren">(</span><em class="sig-param">latitude</em>, <em class="sig-param">longitude</em>, <em class="sig-param">distance=10</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.get_closest_station" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the cloest station within certain distance from the given location using LIVE_URL</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>latitude</strong> (<em>float</em>) – the latitude of the location</p></li>
+<li><p><strong>longitude</strong> (<em>float</em>) – the longitude of the location</p></li>
+<li><p><strong>distance</strong> (<em>int</em>) – the radius to search, default 10</p></li>
+<li><p><strong>Retruns</strong> – </p></li>
+<li><p><strong>-------</strong> – </p></li>
+<li><p><strong>DataFrame</strong> – A dataframe with columns named Lat, Long and Station.
+Station stands for the id of the cloest station.
+ValueError raised when there is no stations within given distance.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.get_easting_northing_from_lat_long">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">get_easting_northing_from_lat_long</code><span class="sig-paren">(</span><em class="sig-param">latitude</em>, <em class="sig-param">longitude</em>, <em class="sig-param">radians=False</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.get_easting_northing_from_lat_long" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert GPS (latitude, longitude) to OS (easting, northing).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>latitude</strong> (<em>sequence of floats</em>) – Latitudes to convert.</p></li>
+<li><p><strong>longitude</strong> (<em>sequence of floats</em>) – Lonitudes to convert.</p></li>
+<li><p><strong>radians</strong> (<em>bool</em><em>, </em><em>optional</em>) – Set to <cite>True</cite> if input is in radians. Otherwise degrees are assumed</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>easting</strong> (<em>ndarray of floats</em>) – OS Eastings of input</p></li>
+<li><p><strong>northing</strong> (<em>ndarray of floats</em>) – OS Northings of input</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>A guide to coordinate systems in Great Britain
+(<a class="reference external" href="https://webarchive.nationalarchives.gov.uk/20081023180830/http://www.ordnancesurvey.co.uk/oswebsite/gps/information/coordinatesystemsinfo/guidecontents/index.html">https://webarchive.nationalarchives.gov.uk/20081023180830/http://www.ordnancesurvey.co.uk/oswebsite/gps/information/coordinatesystemsinfo/guidecontents/index.html</a>)</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.get_history_stations_rainfall">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">get_history_stations_rainfall</code><span class="sig-paren">(</span><em class="sig-param">input_date</em>, <em class="sig-param">limit=20</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.get_history_stations_rainfall" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get a visualized history rainfall data of a certain number of stations on a certain date.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input_date</strong> (<em>str</em>) – the date parameter, format: YYYY-MM-DD</p></li>
+<li><p><strong>limit</strong> (<em>int</em>) – the number of stations to return</p></li>
+<li><p><strong>Retruns</strong> – </p></li>
+<li><p><strong>-------</strong> – </p></li>
+<li><p><strong>DataFrameGroupBy</strong> – A DataFrameGroupBy object with datetime as the key</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.get_mean_class">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">get_mean_class</code><span class="sig-paren">(</span><em class="sig-param">mean_value</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.get_mean_class" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map mean value to risk level based on preset thresholds</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>mean_value</strong> (<em>float</em>) – the mean value of certain station</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the risk level</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.get_station_mean">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">get_station_mean</code><span class="sig-paren">(</span><em class="sig-param">notation</em>, <em class="sig-param">input_date</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.get_station_mean" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get mean of the rainfall from READINGS_URL on a certain date</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>notation</strong> (<em>str</em>) – the id of the station</p></li>
+<li><p><strong>input_date</strong> (<em>str</em>) – the date parameter, format: YYYY-MM-DD</p></li>
+<li><p><strong>Retruns</strong> – </p></li>
+<li><p><strong>-------</strong> – </p></li>
+<li><p><strong>float</strong> – the mean of the rainfall from READINGS_URL on the given date</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.get_station_rainfall_range">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">get_station_rainfall_range</code><span class="sig-paren">(</span><em class="sig-param">station_id</em>, <em class="sig-param">start_date</em>, <em class="sig-param">end_date</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.get_station_rainfall_range" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the daily rainfall data of certain station during specific period.
+According to the API, the maximum data it would return is a 5-day full data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>station_id</strong> (<em>str</em>) – the id of station</p></li>
+<li><p><strong>start_date</strong> (<em>str</em>) – start date of the period, format: YYYY-MM-DD</p></li>
+<li><p><strong>end_date</strong> (<em>str</em>) – end date of the period, format: YYYY-MM-DD</p></li>
+<li><p><strong>Retruns</strong> – </p></li>
+<li><p><strong>-------</strong> – </p></li>
+<li><p><strong>DataFrame</strong> – A dataframe indexed by datetime with column named rainfall</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.get_today_prediction">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">get_today_prediction</code><span class="sig-paren">(</span><em class="sig-param">postcodes</em>, <em class="sig-param">show_plot=True</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.get_today_prediction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the daily rainfall data prediction of the given postcodes
+based on the data in the past 30 days.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>postcodes</strong> (<em>a sequence of postcodes</em>) – Ordered sequence of N postcode strings</p></li>
+<li><p><strong>show_plot</strong> (<em>bool</em>) – A switch for showing the plots station by station.</p></li>
+<li><p><strong>Retruns</strong> – </p></li>
+<li><p><strong>-------</strong> – </p></li>
+<li><p><strong>DataFrame</strong> – A dataframe indexed by Postcode with columns
+Rain_Risk, Property_Risk, Flood_Prediction</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="flood_tool.trim_postcode">
+<code class="sig-prename descclassname">flood_tool.</code><code class="sig-name descname">trim_postcode</code><span class="sig-paren">(</span><em class="sig-param">pc</em><span class="sig-paren">)</span><a class="headerlink" href="#flood_tool.trim_postcode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert a dirty postcode to a valid one but remain the same if invalid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>pc</strong> (<em>str</em>) – input postcode</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A valid postcode or the invalid one.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p class="rubric">References</p>
+<dl class="footnote brackets">
+<dt class="label" id="id4"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>A guide to coordinate systems in Great Britain, Ordnance Survey</p>
+</dd>
+<dt class="label" id="id5"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
+<dd><p>Map projections - A Working Manual, John P. Snyder, <a class="reference external" href="https://doi.org/10.3133/pp1395">https://doi.org/10.3133/pp1395</a></p>
+</dd>
+<dt class="label" id="id6"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dd><p>Computing Helmert transformations, G Watson, <a class="reference external" href="http://www.maths.dundee.ac.uk/gawatson/helmertrev.pdf">http://www.maths.dundee.ac.uk/gawatson/helmertrev.pdf</a></p>
+</dd>
+</dl>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">Flood Tool</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
