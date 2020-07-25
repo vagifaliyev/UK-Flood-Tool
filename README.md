@@ -43,11 +43,8 @@ The tool includes several tests, which you can use to checki its operation on yo
 ```
 python -m pytest flood_tool
 ``
-
 The current version also includes a speed scoring algorithm. This can be run with.
-
 ```
 python -m score
 ```
-
 in the main repository directory.
