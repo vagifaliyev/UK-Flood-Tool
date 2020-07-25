@@ -6,7 +6,8 @@ The Environment Agency routinely collects data on rainfall, sea level and river 
 
 This tool calculates flood probabilities and risks for postcodes in England.
 
-![](https://github.com/vagifaliyev/UK-Flood-Tool/blob/master/Presentation.pdf)
+![look.pdf](https://github.com/vagifaliyev/UK-Flood-Tool/blob/master/Presentation.pdf)
+
 
 ### Installation Guide
 
